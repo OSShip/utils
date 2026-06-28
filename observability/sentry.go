@@ -28,9 +28,12 @@ func InitSentry(serviceName string) {
 		Environment:      envOr("SENTRY_ENVIRONMENT", "development"),
 		ServerName:       serviceName,
 		TracesSampleRate: sampleRate,
+		EnableTracing:    true,
 	}); err != nil {
 		log.Printf("sentry init failed for %s: %v", serviceName, err)
+		return
 	}
+	log.Printf("sentry initialized for %s (structured logs enabled)", serviceName)
 }
 
 // FlushSentry flushes pending Sentry events.
