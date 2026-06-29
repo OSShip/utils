@@ -29,7 +29,6 @@ func InitSentry(serviceName string) {
 		ServerName:       serviceName,
 		TracesSampleRate: sampleRate,
 		EnableTracing:    true,
-		EnableLogs:       true,
 	}); err != nil {
 		log.Printf("sentry init failed for %s: %v", serviceName, err)
 		return

@@ -1,7 +1,5 @@
 module github.com/OSShip/utils/passhash
 
-go 1.22
+go 1.25.0
 
-require golang.org/x/crypto v0.28.0
-
-require golang.org/x/sys v0.26.0 // indirect
+require golang.org/x/crypto v0.50.0

@@ -1,10 +1,10 @@
 module github.com/OSShip/utils/observability
 
-go 1.22
+go 1.25.0
 
 require (
-	github.com/getsentry/sentry-go v0.34.0
-	github.com/getsentry/sentry-go/slog v0.34.0
+	github.com/getsentry/sentry-go v0.47.0
+	github.com/getsentry/sentry-go/slog v0.47.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/prometheus/client_golang v1.20.5
@@ -20,7 +20,7 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 )
