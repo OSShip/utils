@@ -29,6 +29,7 @@ func InitSentry(serviceName string) {
 		ServerName:       serviceName,
 		TracesSampleRate: sampleRate,
 		EnableTracing:    true,
+		EnableLogs:       true,
 	}); err != nil {
 		log.Printf("sentry init failed for %s: %v", serviceName, err)
 		return
@@ -50,6 +51,9 @@ func CaptureError(err error, tags map[string]string) {
 		return
 	}
 	hub := sentry.CurrentHub().Clone()
+	if svc := CurrentService(); svc != "" {
+		hub.Scope().SetTag("service", svc)
+	}
 	for k, v := range tags {
 		hub.Scope().SetTag(k, v)
 	}

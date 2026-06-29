@@ -27,19 +27,22 @@ func SentryRecoverMiddleware(serviceName string) func(http.Handler) http.Handler
 	}
 }
 
-// SentryErrorMiddleware captures 5xx responses as Sentry messages.
+// SentryErrorMiddleware logs 5xx responses; handler-level errors are reported via RespondError.
 func SentryErrorMiddleware(serviceName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rec, r)
 			if rec.status >= 500 {
-				CaptureError(fmt.Errorf("%s %s returned %d", r.Method, r.URL.Path, rec.status), map[string]string{
-					"service": serviceName,
-					"path":    r.URL.Path,
-					"method":  r.Method,
-					"status":  fmt.Sprintf("%d", rec.status),
-				})
+				log := DefaultLog
+				if log != nil {
+					log.ErrorContext(r.Context(), "unhandled 5xx response",
+						"service", serviceName,
+						"method", r.Method,
+						"path", r.URL.Path,
+						"status", rec.status,
+					)
+				}
 			}
 		})
 	}

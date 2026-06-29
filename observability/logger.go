@@ -2,8 +2,11 @@ package observability
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	sentryslog "github.com/getsentry/sentry-go/slog"
@@ -12,6 +15,9 @@ import (
 
 // DefaultLog is the service-scoped logger set by InitLogger.
 var DefaultLog *slog.Logger
+
+// RequestLog writes HTTP access logs to a file (never to Sentry).
+var RequestLog *slog.Logger
 
 // InitLogger configures structured logging to stdout and Sentry (when SENTRY_DSN is set).
 // Call after InitSentry. Returns the logger for convenience.
@@ -29,16 +35,19 @@ func InitLogger(service string) *slog.Logger {
 		sentryHandler := sentryslog.Option{
 			EventLevel: []slog.Level{slog.LevelError, sentryslog.LevelFatal},
 			LogLevel:   []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn},
-			AddSource:  true,
+			AddSource:  false,
 			AttrFromContext: []func(context.Context) []slog.Attr{
 				requestIDFromContext,
 			},
 		}.NewSentryHandler(context.Background())
+		sentryHandler = newCodeAttrsHandler(excludeHTTPRequestLogs(sentryHandler))
 		handlers = append(handlers, sentryHandler)
 	}
 
 	logger := slog.New(newMultiHandler(handlers...)).With("service", service)
+	setCurrentService(service)
 	DefaultLog = logger
+	RequestLog = initRequestLogger(service, level)
 	slog.SetDefault(logger)
 
 	if os.Getenv("SENTRY_DSN") != "" {
@@ -61,6 +70,62 @@ func parseLogLevel(raw string) slog.Level {
 	default:
 		return slog.LevelInfo
 	}
+}
+
+func initRequestLogger(service string, level slog.Level) *slog.Logger {
+	path := os.Getenv("HTTP_REQUEST_LOG_FILE")
+	if path == "" {
+		path = filepath.Join("/logs", fmt.Sprintf("%s-http-requests.log", service))
+		if _, err := os.Stat(filepath.Dir(path)); err != nil {
+			path = filepath.Join("logs", fmt.Sprintf("%s-http-requests.log", service))
+		}
+	}
+
+	opts := &slog.HandlerOptions{Level: level}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		log.Printf("request log: mkdir %q failed: %v", filepath.Dir(path), err)
+		return slog.New(slog.NewTextHandler(os.Stdout, opts)).With("service", service)
+	}
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		log.Printf("request log: open %q failed: %v", path, err)
+		return slog.New(slog.NewTextHandler(os.Stdout, opts)).With("service", service)
+	}
+
+	fileHandler := slog.NewTextHandler(f, opts)
+	logger := slog.New(fileHandler).With("service", service)
+	logger.Info("http request logging enabled", "file", path)
+	return logger
+}
+
+// excludeHTTPRequestLogs prevents access-log noise from reaching Sentry.
+func excludeHTTPRequestLogs(next slog.Handler) slog.Handler {
+	return &httpRequestLogFilter{next: next}
+}
+
+type httpRequestLogFilter struct {
+	next slog.Handler
+}
+
+func (f *httpRequestLogFilter) Enabled(ctx context.Context, level slog.Level) bool {
+	return f.next.Enabled(ctx, level)
+}
+
+func (f *httpRequestLogFilter) Handle(ctx context.Context, r slog.Record) error {
+	if r.Message == "http request" {
+		return nil
+	}
+	return f.next.Handle(ctx, r)
+}
+
+func (f *httpRequestLogFilter) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &httpRequestLogFilter{next: f.next.WithAttrs(attrs)}
+}
+
+func (f *httpRequestLogFilter) WithGroup(name string) slog.Handler {
+	return &httpRequestLogFilter{next: f.next.WithGroup(name)}
 }
 
 func requestIDFromContext(ctx context.Context) []slog.Attr {

@@ -15,7 +15,10 @@ func RequestLogMiddleware(service string) func(http.Handler) http.Handler {
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 			next.ServeHTTP(ww, r)
 
-			logger := DefaultLog
+			logger := RequestLog
+			if logger == nil {
+				logger = DefaultLog
+			}
 			if logger == nil {
 				return
 			}
