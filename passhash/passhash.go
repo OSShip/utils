@@ -4,11 +4,26 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 
+	"github.com/alexedwards/argon2id"
 	"golang.org/x/crypto/bcrypt"
 )
 
 const saltBytes = 32
+
+// HashPassword hashes password combined with the per-user salt using Argon2id.
+func HashPassword(password, salt string) (string, error) {
+	input := password
+	if salt != "" {
+		input = salt + password
+	}
+	hash, err := argon2id.CreateHash(input, argon2id.DefaultParams)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+	return hash, nil
+}
 
 // GenerateSalt returns a cryptographically random salt encoded as base64.
 func GenerateSalt() (string, error) {
@@ -17,15 +32,6 @@ func GenerateSalt() (string, error) {
 		return "", fmt.Errorf("generate salt: %w", err)
 	}
 	return base64.RawStdEncoding.EncodeToString(b), nil
-}
-
-// HashPassword hashes password combined with the per-user salt using bcrypt.
-func HashPassword(password, salt string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(salt+password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("hash password: %w", err)
-	}
-	return string(hash), nil
 }
 
 // HashPasswordPair generates a new salt and returns salt + hash for storage.
@@ -42,10 +48,28 @@ func HashPasswordPair(password string) (salt, hash string, err error) {
 }
 
 // VerifyPassword checks a password against stored hash and salt.
-// When salt is empty, legacy bcrypt-only hashes (password without extra salt) are accepted.
+// Argon2id hashes are verified when hash starts with "$argon2id$".
+// Legacy bcrypt hashes (with or without per-user salt) remain supported.
 func VerifyPassword(password, salt, hash string) bool {
-	if salt == "" {
-		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+	input := password
+	if salt != "" {
+		input = salt + password
 	}
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(salt+password)) == nil
+
+	if strings.HasPrefix(hash, "$argon2id$") {
+		match, err := argon2id.ComparePasswordAndHash(input, hash)
+		return err == nil && match
+	}
+
+	if isBcryptHash(hash) {
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(input)) == nil
+	}
+
+	return false
+}
+
+func isBcryptHash(hash string) bool {
+	return strings.HasPrefix(hash, "$2a$") ||
+		strings.HasPrefix(hash, "$2b$") ||
+		strings.HasPrefix(hash, "$2y$")
 }

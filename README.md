@@ -9,7 +9,7 @@ Shared Go libraries and API contracts for the [OSShip](https://github.com/OSShip
 | `jwtutil` | JWT generation and validation |
 | `kafka` | Kafka event envelope and producer helpers |
 | `observability` | Prometheus metrics, health checks, rate limiting |
-| `passhash` | Salted bcrypt password hashing |
+| `passhash` | Salted Argon2id password hashing (legacy bcrypt verify) |
 | `proto/` | Event schemas and OpenAPI specs |
 
 ## License
